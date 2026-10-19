@@ -24,9 +24,11 @@ Portable lifecycle hooks for Claude Code and Codex. The package installs one aud
 
 Requires Node.js 20 or newer.
 
+The maintained source now lives in the SISO monorepo at [`SISO_Agents/siso-agent-hooks`](https://github.com/sisodias/siso/tree/main/SISO_Agents/siso-agent-hooks). Clone that repository and run the commands from this package directory:
+
 ```bash
-git clone https://github.com/sisodias/siso-agent-hooks.git
-cd siso-agent-hooks
+git clone https://github.com/sisodias/siso.git
+cd siso/SISO_Agents/siso-agent-hooks
 node bin/siso-hooks.mjs install
 node bin/siso-hooks.mjs doctor
 ```
