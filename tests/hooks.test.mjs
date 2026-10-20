@@ -45,6 +45,24 @@ test('safety guard allows ordinary commands', () => {
   assert.equal(result.stdout, '');
 });
 
+test('safety guard sends bare builds and whole-disk scans to heavy', () => {
+  for (const command of ['tsc --noEmit', 'vite build', 'playwright test', 'pnpm install', 'npm ci', 'npm install --prefix x', 'find / -name effect', 'bfs / -name x']) {
+    const result = run('hooks/safety-guard.mjs', { tool_name: 'Bash', tool_input: { command } });
+    assert.equal(result.status, 0, command);
+    const decision = JSON.parse(result.stdout).hookSpecificOutput;
+    assert.equal(decision.permissionDecision, 'deny', command);
+    assert.match(decision.permissionDecisionReason, /^Run it as: heavy -- |^Scope the search to a directory$/, command);
+  }
+});
+
+test('safety guard lets heavy-wrapped builds, git, scripts and tests through', () => {
+  for (const command of ['heavy -- tsc --noEmit', 'heavy --class quick -- npm ci', 'git status', 'node scripts/build.mjs', 'npm test', 'find ./src -name x', 'pnpm -v']) {
+    const result = run('hooks/safety-guard.mjs', { tool_name: 'Bash', tool_input: { command } });
+    assert.equal(result.status, 0, command);
+    assert.equal(result.stdout, '', command);
+  }
+});
+
 test('checkpoint stores metadata without conversation bodies', () => {
   const state = mkdtempSync(join(tmpdir(), 'siso-hook-state-'));
   const result = run('hooks/checkpoint.mjs', {
