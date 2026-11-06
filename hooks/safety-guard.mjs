@@ -63,7 +63,12 @@ const forbidden = [
   { pattern: /\brm\s+-(?=[^\n]*r)(?=[^\n]*f)[^\n]*\s+['"]?(?:\/|~\/?|\$HOME|\$\{HOME\})['"]?(?:\s|$)/i, reason: 'recursive deletion targets a broad home or root path' }
 ];
 
-if (heavyHint) {
+// 7 Nov: the deny cost a whole turn to retype the same command as `heavy -- X`. Claude's Bash takes updatedInput, so the
+// first line is rewritten in place (normal permission flow still applies); Codex tools keep the deny.
+if (heavyBare.test(command) && toolName === 'Bash' && !command.includes('\n') && payload.tool_input?.command) {
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse',
+    updatedInput: { ...payload.tool_input, command: `heavy -- ${payload.tool_input.command.trimStart()}` } } }));
+} else if (heavyHint) {
   denyPreTool(heavyHint);
 } else for (const rule of forbidden) {
   if ((rule.test && rule.test()) || (rule.pattern && rule.pattern.test(command))) {
