@@ -45,9 +45,20 @@ test('safety guard allows ordinary commands', () => {
   assert.equal(result.stdout, '');
 });
 
-test('safety guard sends bare builds and whole-disk scans to heavy', () => {
-  for (const command of ['tsc --noEmit', 'vite build', 'playwright test', 'pnpm install', 'npm ci', 'npm install --prefix x', 'find / -name effect', 'bfs / -name x']) {
-    const result = run('hooks/safety-guard.mjs', { tool_name: 'Bash', tool_input: { command } });
+test('safety guard rewrites a bare build in Claude Bash to heavy, keeping the other input fields', () => {
+  for (const command of ['tsc --noEmit', 'vite build', 'playwright test', 'pnpm install', 'npm ci', 'npm install --prefix x', '  tsc -p .']) {
+    const result = run('hooks/safety-guard.mjs', { tool_name: 'Bash', tool_input: { command, description: 'd', timeout: 5 } });
+    assert.equal(result.status, 0, command);
+    const out = JSON.parse(result.stdout).hookSpecificOutput;
+    assert.equal(out.permissionDecision, undefined, command);
+    assert.deepEqual(out.updatedInput, { command: `heavy -- ${command.trimStart()}`, description: 'd', timeout: 5 }, command);
+  }
+});
+
+test('safety guard denies bare builds in Codex tools and whole-disk scans anywhere', () => {
+  const cases = [['exec_command', 'tsc --noEmit'], ['exec', 'npm ci'], ['Bash', 'find / -name effect'], ['Bash', 'bfs / -name x']];
+  for (const [tool_name, command] of cases) {
+    const result = run('hooks/safety-guard.mjs', { tool_name, tool_input: { command } });
     assert.equal(result.status, 0, command);
     const decision = JSON.parse(result.stdout).hookSpecificOutput;
     assert.equal(decision.permissionDecision, 'deny', command);
