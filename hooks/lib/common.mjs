@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { closeSync, fstatSync, mkdirSync, openSync, readSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -100,4 +101,29 @@ export function denyPreTool(reason) {
       permissionDecisionReason: reason
     }
   }));
+}
+
+// The text of the agent's last reply: Claude Code's Stop input carries it; older inputs only have the transcript.
+export function lastAssistantText(input, tailBytes = 262144) {
+  if (typeof input?.last_assistant_message === 'string') return input.last_assistant_message;
+  if (!input?.transcript_path) return '';
+  let text = '';
+  for (const event of readJsonLines(input.transcript_path, tailBytes)) {
+    const message = event?.message;
+    if (event?.type !== 'assistant' || !Array.isArray(message?.content)) continue;
+    for (const block of message.content) if (block?.type === 'text' && block.text) text = block.text;
+  }
+  return text;
+}
+
+// A T3 thread as the local t3 CLI shows it, or null when it can't be read (another machine, no CLI, a slow server).
+export function t3Thread(threadId, cli = process.env.T3CODE_CLI_PATH) {
+  if (!threadId || !cli) return null;
+  try {
+    const shown = JSON.parse(execFileSync(cli, ['thread', 'show', '--json', '--messages', '0', threadId],
+      { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }));
+    return shown.thread || shown;
+  } catch {
+    return null;
+  }
 }

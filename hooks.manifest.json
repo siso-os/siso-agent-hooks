@@ -25,7 +25,7 @@
     {
       "id": "safety-guard",
       "file": "hooks/safety-guard.mjs",
-      "description": "Deny a small set of destructive broad-target shell and Git operations."
+      "description": "Deny destructive broad-target shell and Git operations and T3 work on another house's plan; send queued T3 messages at once; keep pinned threads from linking PRs or settling."
     },
     {
       "id": "skill-events",
@@ -41,6 +41,26 @@
       "id": "verification-state",
       "file": "hooks/verification-state.mjs",
       "description": "Track successful mutations and verification commands from stable tool lifecycle events."
+    },
+    {
+      "id": "pending-stop",
+      "file": "hooks/pending-stop.mjs",
+      "description": "Block ending a turn while this session's own background command or PR is still open (loop limit 3). Delegates never block: T3 wakes the thread when one ends. A final reply may not ask the reader to run a command, and a pinned thread woken by another agent closes in 60 words."
+    },
+    {
+      "id": "ralph-loop",
+      "file": "hooks/ralph-loop.mjs",
+      "description": "Ralph Loop (ported from Cursor's ralph-loop plugin, MIT © Cursor): feed the same prompt back each turn until the completion promise or max_iterations. Opt-in: only acts when the ralph-loop skill wrote .claude/ralph/scratchpad.md."
+    },
+    {
+      "id": "advisor",
+      "file": "hooks/advisor.mjs",
+      "description": "Advisor (ported from Cursor's advisor plugin, MIT © Cursor): after edits, ask once per batch for the pre-completion advisor consult and log each consult. Opt-in: only acts when .claude/advisor/state.json is enabled."
+    },
+    {
+      "id": "continual-learning",
+      "file": "hooks/continual-learning.mjs",
+      "description": "Continual learning (ported from Cursor's continual-learning plugin, MIT © Cursor): every N turns and minutes, ask for a memory update. Ruled by Agent Zero, 16 Nov: never wired. A turn counter must not edit AGENTS.md (one writer per place; transcripts are local state). A lesson goes to the seat's .agents/agents/<seat>/lessons/, and a correction worth keeping becomes a check (a lint, a test or a hook), not another rules line."
     }
   ],
   "profiles": {
@@ -55,18 +75,24 @@
         ],
         "PreToolUse": [
           { "hook": "safety-guard", "matcher": "Bash", "timeout": 10 },
+          { "hook": "safety-guard", "matcher": "^mcp__t3-code__(delegate_task|t3_thread_launch|create_threads|t3_thread_configure|t3_thread_send|t3_thread_organize|link_pull_requests?)$", "timeout": 10 },
           { "hook": "context-guard", "matcher": "Bash|Read|Edit|Write|Agent|Task", "timeout": 10 }
         ],
         "PostToolUse": [
           { "hook": "skill-events", "matcher": "Skill", "async": true },
-          { "hook": "verification-state", "matcher": "Bash|Edit|Write|MultiEdit|apply_patch|exec|exec_command|functions\\.exec", "timeout": 10 }
+          { "hook": "verification-state", "matcher": "Bash|Edit|Write|MultiEdit|apply_patch|exec|exec_command|functions\\.exec", "timeout": 10 },
+          { "hook": "pending-stop", "args": ["mark"], "matcher": "^(Bash|BashOutput|TaskOutput|KillShell|KillBash|TaskStop|mcp__t3-code__delegate_task|mcp__t3-code__task_status|mcp__t3-code__task_cancel|mcp__t3-code__t3_thread_wait|mcp__t3-code__watch_pull_request)$", "timeout": 10 },
+          { "hook": "advisor", "args": ["mark"], "matcher": "Edit|Write|MultiEdit|NotebookEdit", "timeout": 10 }
         ],
         "PreCompact": [
           { "hook": "checkpoint", "timeout": 10 }
         ],
         "Stop": [
           { "hook": "verify-stop", "timeout": 10 },
-          { "hook": "agent-state", "args": ["idle"], "async": true }
+          { "hook": "agent-state", "args": ["idle"], "async": true },
+          { "hook": "pending-stop", "args": ["stop"], "timeout": 10 },
+          { "hook": "ralph-loop", "timeout": 10 },
+          { "hook": "advisor", "args": ["stop"], "timeout": 10 }
         ],
         "SessionEnd": [
           { "hook": "agent-state", "args": ["released"], "async": true }
@@ -75,7 +101,8 @@
           { "hook": "agent-state", "args": ["subagent-start"], "async": true }
         ],
         "SubagentStop": [
-          { "hook": "agent-state", "args": ["subagent-stop"], "async": true }
+          { "hook": "agent-state", "args": ["subagent-stop"], "async": true },
+          { "hook": "advisor", "args": ["record"], "matcher": "advisor-subagent", "timeout": 10 }
         ]
       }
     },
